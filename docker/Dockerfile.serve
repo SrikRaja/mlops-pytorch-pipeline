@@ -1,0 +1,21 @@
+FROM python:3.11-slim AS base
+WORKDIR /app
+COPY requirements/serve.txt .
+RUN pip install --no-cache-dir -r serve.txt
+
+FROM base AS serving
+COPY src/model.py src/serve.py ./src/
+
+RUN useradd --create-home --shell /bin/bash appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app/src
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+CMD ["uvicorn", "serve:app", "--host", "0.0.0.0", "--port", "8080"]
